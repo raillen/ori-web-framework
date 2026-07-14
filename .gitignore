@@ -1,0 +1,13 @@
+# local / generated
+.sessions/
+**/var/
+**/audit.log
+**/*.log
+packages/ori-sqlite
+.ori/
+*.db
+
+# OS / editor
+.DS_Store
+*~
+*.swp
