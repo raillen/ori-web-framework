@@ -8,6 +8,7 @@ HTML-first web stack for **[Ori](https://github.com/raillen/ori-lang)**
 | **Repo** | https://github.com/raillen/ori-web-framework |
 | **Language** | Ori ≥ **0.3.5+** (runtime with argon2, TOTP, net timeouts for full demos) |
 | **Status** | Feature freeze v1 — see [`FREEZE-WEB.md`](FREEZE-WEB.md) |
+| **Package registry (name)** | **OriLamp** — public package index / `ORI_REGISTRY` (site TBD: Pages or Vercel) |
 
 This repository is the **framework monorepo** (libraries + demos only).  
 The **Ori compiler** lives in [ori-lang](https://github.com/raillen/ori-lang).

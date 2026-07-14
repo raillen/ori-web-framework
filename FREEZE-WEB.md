@@ -1,7 +1,8 @@
 # Web stack — feature freeze (v1)
 
 **Date:** 2026-07-14  
-**Scope:** packages under `packages/ori-*` for HTML-first web (not the Ori compiler FREEZE-1).
+**Scope:** packages under `packages/ori-*` for HTML-first web (not the Ori compiler FREEZE-1).  
+**Public registry name:** **OriLamp** (package index / `ORI_REGISTRY`; host TBD).
 
 ## Frozen surface (do not expand casually)
 
