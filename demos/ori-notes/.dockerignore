@@ -1,4 +1,7 @@
-ori-notes
+# Do NOT ignore the `ori-notes` binary — the Dockerfile COPYs it.
 *.db
 var/
 .sessions/
+.git
+*.log
+ori-notes-bin

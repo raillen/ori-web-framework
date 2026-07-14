@@ -1,0 +1,6 @@
+# Local build artifacts (compile before fly deploy)
+ori-notes
+ori-notes-bin
+*.db
+var/
+.sessions/

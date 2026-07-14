@@ -24,21 +24,33 @@ ORI_HOST=127.0.0.1 PORT=3460 ori run main.orl
 
 ## Deploy on Fly.io
 
+The Docker image **does not compile Ori**. You build the binary on the host,
+then `fly deploy` packages it with `views/` and `public/`.
+
 1. Install [flyctl](https://fly.io/docs/hands-on/install-flyctl/) and `fly auth login`.
-2. From this directory, build a **Linux** binary (on Linux host or CI):
+2. From **this directory**, compile a **Linux x86_64** binary (name must match Dockerfile):
 
 ```bash
+cd demos/ori-notes
 ori compile main.orl -o ori-notes
+ls -la ori-notes   # must exist and be executable (~10MB)
 ```
 
-3. Create / deploy:
+3. Deploy (do **not** list `ori-notes` in `.dockerignore` — that was a trap):
 
 ```bash
-fly launch --no-deploy   # first time: accept fly.toml, app name
+fly launch --no-deploy   # first time only
 fly deploy
 ```
 
-`fly.toml` and `Dockerfile` expect the binary named `ori-notes` plus `views/` and `public/` copied into the image.
+If you see `"/ori-notes": not found` in the build, the binary is missing from
+the Docker context: re-run step 2 and check `.dockerignore` does not ignore it.
+
+4. Optional production secret:
+
+```bash
+fly secrets set ORI_WEB_SECRET="$(openssl rand -hex 32)"
+```
 
 ### Env
 
