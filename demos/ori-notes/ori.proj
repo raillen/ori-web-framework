@@ -1,0 +1,10 @@
+manifest = 1
+name = "ori_notes"
+version = "0.1.0"
+kind = "app"
+entry = "main.orl"
+[source]
+root_namespace = "app"
+[dependencies]
+web = { path = "../../packages/ori-web", version = "0.1.0" }
+templates = { path = "../../packages/ori-templates", version = "0.1.0" }

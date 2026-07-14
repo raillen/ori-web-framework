@@ -1,0 +1,7 @@
+landing-page
+public/assets/
+public/index.html
+public/vite.svg
+*.db
+var/
+.sessions/

@@ -1,0 +1,17 @@
+<ul class="notes" id="notes-list">
+@{ for i, note in notes }
+  <li class="note-row">
+    <div class="note-body">
+      <span class="idx">#@{ i }</span>
+      <span class="text">@{ note }</span>
+    </div>
+    <form method="post" action="/notes/@{ i }/delete" class="inline">
+      <input type="hidden" name="csrf_token" value="@{ csrf_token }">
+      <button type="submit" class="ghost danger" aria-label="Delete note">Delete</button>
+    </form>
+  </li>
+@{ end }
+@{ if notes_empty }
+  <li class="empty">No notes yet — add one above.</li>
+@{ end }
+</ul>

@@ -71,8 +71,24 @@ You do **not** need every package in every app.
 
 ## Demos
 
+| Demo | Stack | Port (default) |
+|------|--------|----------------|
+| **`ori-notes`** | `ori-web` + **`ori-templates`** notes app (Fly-ready) | `3460` / `$PORT` |
+| **`landing-page`** | **Svelte** SPA + Ori static/API (Fly-ready) | `3461` / `$PORT` |
+| `ori-web-demo` | templates + HTMX notes | `3457` |
+| `ori-web-demo-auth` | TOTP 2FA | `3459` |
+| `hello_server` | minimal | `3456` |
+| `blog_app` | full `web_app` scaffold | `3000` |
+
 ```bash
 export ORI_BIN=ori   # or path to compiler build
+
+# Product demos (recommended for Fly)
+cd demos/ori-notes && ori run main.orl
+cd demos/landing-page/frontend && npm install && npm run build
+cd demos/landing-page && ori run main.orl
+
+# Earlier samples
 cd demos/ori-web-demo && ori run main.orl          # :3457
 cd demos/ori-web-demo-auth && ORI_USE_AOT=1 ori run main.orl  # :3459
 cd demos/hello_server && ori run main.orl          # :3456
@@ -96,13 +112,34 @@ cd demos/hello_server && ori run main.orl          # :3456
 ./tools/qa/web_session_sqlite_smoke.sh   # needs ori-sqlite + AOT
 ```
 
+## OriLamp (package registry)
+
+**OriLamp** is the product name for Ori’s public package shelf — *a lamp for
+readable packages*, in the spirit of “ori” (light) and reading-first code.
+
+Planned shape (simple static host is enough):
+
+```text
+ORI_REGISTRY=https://orilamp…   # GitHub Pages or Vercel
+  packages/web/0.1.0.tar.gz
+  packages/templates/0.1.0.tar.gz
+  …
+```
+
+```bash
+export ORI_REGISTRY=https://…   # OriLamp base URL
+ori install web@0.1.0
+```
+
+Until OriLamp is online, use path/tarball/git as below.
+
 ## Install options (not only `git clone`)
 
 | Method | How | When |
 |--------|-----|------|
 | **Path + tarball** | Download release asset, extract, `path = "…/packages/ori-web"` | Users with Ori installed |
 | **Path + git** | `git clone` this repo (or tag), same path deps | Contributors / full demos |
-| **Registry** | `ori publish` each package → `ori install web@0.1.0` | After you host `ORI_REGISTRY` |
+| **OriLamp (registry)** | `ori publish` each package → `ori install web@0.1.0` | When `ORI_REGISTRY` points at OriLamp |
 | **Git dep in ori.proj** | `{ git = "…", tag = "v0.1.0" }` | **Only if** the package is the **root** of that git repo |
 
 This monorepo has **several** packages under `packages/`. The Ori manager can:

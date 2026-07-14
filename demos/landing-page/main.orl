@@ -1,0 +1,102 @@
+module app.main
+
+-- Landing page: Ori HTTP serves a Svelte (Vite) SPA from public/
+-- plus small JSON helpers (health, CSRF, contact).
+-- Build UI first:  cd frontend && npm install && npm run build
+
+import web = web
+import ori.io = io
+import ori.fs = fs
+import ori.map = maps
+import ori.string = str
+import ori.os = os
+import ori.convert = conv
+
+var MESSAGES: int = 0
+
+listen_host() -> string
+    return os.env_or("ORI_HOST", "0.0.0.0")
+end
+
+listen_port() -> int
+    return conv.parse_int_or(os.env_or("PORT", os.env_or("ORI_PORT", "3461")), 3461)
+end
+
+json_escape(s: string) -> string
+    var out: string = s
+    out = str.replace_all(out, "\\", "\\\\")
+    out = str.replace_all(out, "\"", "\\\"")
+    out = str.replace_all(out, "\n", "\\n")
+    out = str.replace_all(out, "\r", "\\r")
+    return out
+end
+
+health(_req: web.Request) -> web.ActionResult
+    return ok(web.json(200, "{\"ok\":true,\"service\":\"landing-page\"}"))
+end
+
+csrf_json(req: web.Request) -> web.ActionResult
+    const t: string = web.csrf_token(req)
+    return ok(web.json(200, str.concat("{\"csrf_token\":\"", str.concat(json_escape(t), "\"}"))))
+end
+
+contact(req: web.Request) -> web.ActionResult
+    const form: map[string, string] = web.form_body(req)
+    var email: string = ""
+    var message: string = ""
+    if some(e) = maps.try_get(form, "email")
+        email = str.trim(e)
+    end
+    if some(m) = maps.try_get(form, "message")
+        message = str.trim(m)
+    end
+    if str.len(email) == 0
+        return ok(web.json(400, "{\"ok\":false,\"error\":\"email required\"}"))
+    end
+    if str.len(message) == 0
+        return ok(web.json(400, "{\"ok\":false,\"error\":\"message required\"}"))
+    end
+    MESSAGES = MESSAGES + 1
+    web.audit("landing.contact", email)
+    io.println(str.concat("contact from ", email))
+    return ok(web.json(200, "{\"ok\":true}"))
+end
+
+stats(_req: web.Request) -> web.ActionResult
+    return ok(web.json(200, str.concat("{\"messages\":", str.concat(string(MESSAGES), "}"))))
+end
+
+spa_index(_req: web.Request) -> web.ActionResult
+    match fs.read_text("public/index.html")
+    case ok(html):
+        return ok(web.html(200, html))
+    case err(_):
+        return ok(web.text(503, "Svelte build missing. Run: cd frontend && npm install && npm run build"))
+    end
+    return ok(web.not_found())
+end
+
+main()
+    web.use_memory_sessions()
+    var a: web.App = web.app()
+    a = web.set_rate_limit(a, 240)
+    a = web.set_csp(a, "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'")
+
+    web.static(a, "/", "public")
+
+    web.get(a, "/api/health", health)
+    web.get(a, "/healthz", health)
+    web.get(a, "/api/csrf", csrf_json)
+    web.get(a, "/api/stats", stats)
+    web.post(a, "/api/contact", contact)
+    web.get(a, "/", spa_index)
+
+    const host: string = listen_host()
+    const port: int = listen_port()
+    io.println(str.concat("landing-page listening on http://", str.concat(host, str.concat(":", string(port)))))
+    match web.serve(host, port, a)
+    case ok(_):
+    case err(msg):
+        io.println(msg)
+    end
+end

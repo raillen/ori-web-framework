@@ -1,0 +1,42 @@
+:root {
+  color-scheme: light;
+  --ink: #141313;
+  --muted: #6a625a;
+  --paper: #faf6f0;
+  --card: #fffdf9;
+  --line: #e5d9c8;
+  --accent: #eb772a;
+  --accent-deep: #c45e18;
+  --tan: #d4b893;
+  --ok: #2f6b45;
+  --font: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --mono: "Geist Mono", "IBM Plex Mono", ui-monospace, monospace;
+  font-family: var(--font);
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 45% at 90% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
+    radial-gradient(ellipse 50% 40% at 0% 20%, color-mix(in srgb, var(--tan) 35%, transparent), transparent),
+    var(--paper);
+}
+
+a {
+  color: var(--accent-deep);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
