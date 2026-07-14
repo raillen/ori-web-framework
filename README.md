@@ -95,11 +95,44 @@ cd demos/hello_server && ori run main.orl          # :3456
 ./tools/qa/web_session_sqlite_smoke.sh   # needs ori-sqlite + AOT
 ```
 
-## Distribution (later)
+## Install options (not only `git clone`)
 
-- **This Git monorepo** = develop / version the framework.  
-- **Tarball** (optional CI): zip of `packages/*` + README for users who already have Ori.  
-- **ori-lang** may keep a copy or submodule for integration; **canonical framework source is this repo**.
+| Method | How | When |
+|--------|-----|------|
+| **Path + tarball** | Download release asset, extract, `path = "…/packages/ori-web"` | Users with Ori installed |
+| **Path + git** | `git clone` this repo (or tag), same path deps | Contributors / full demos |
+| **Registry** | `ori publish` each package → `ori install web@0.1.0` | After you host `ORI_REGISTRY` |
+| **Git dep in ori.proj** | `{ git = "…", tag = "v0.1.0" }` | **Only if** the package is the **root** of that git repo |
+
+This monorepo has **several** packages under `packages/`. The Ori manager can:
+
+```toml
+# version pin (needs ORI_REGISTRY with published packages)
+web = "0.1.0"
+
+# path (local clone or tarball extract)
+web = { path = "../ori-web-framework/packages/ori-web", version = "0.1.0" }
+
+# git (single-package repos) — not ideal for this multi-package monorepo root
+# web = { git = "https://github.com/…/ori-web.git", tag = "v0.1.0" }
+```
+
+```bash
+ori get .                 # fetch declared git/path deps into ~/.ori/packages
+ori install web@0.1.0     # from ORI_REGISTRY (file:// or https)
+ori publish ./packages/ori-web   # publish one package to the registry
+```
+
+So: **not only git clone** — tarball + path is the main user path; **registry** is the “npm-like” path when you configure it.
+
+### Release tarball
+
+```bash
+./tools/package_release.sh 0.1.0
+# → dist/ori-web-framework-0.1.0.tar.gz
+```
+
+GitHub Releases attach that archive (see tag `v0.1.0`).
 
 ## License
 

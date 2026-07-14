@@ -1,3 +1,6 @@
+# release artifacts (rebuilt by tools/package_release.sh)
+dist/
+
 # local / generated
 .sessions/
 **/var/
