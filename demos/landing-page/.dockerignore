@@ -1,6 +1,9 @@
+# Do NOT ignore the `landing-page` binary — Dockerfile COPYs it.
 frontend/node_modules
 frontend/dist
-landing-page
+frontend/
 *.db
 var/
 .sessions/
+.git
+*.log
