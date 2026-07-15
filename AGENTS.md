@@ -1,5 +1,6 @@
-# ori-web-framework — agent / contributor rules
+# Lantern (ori-web-framework) — agent / contributor rules
 
+**Product:** Lantern. **Tagline:** Ori is my light. Lantern is how it shines on the web.  
 Precedence: **this file** > global Grok skills for work in this repo.
 
 ## Required skills / contracts

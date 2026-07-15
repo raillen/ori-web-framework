@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# ori-web — developer CLI for ori-web-framework
+# ori-web — developer CLI for Lantern (ori-web-framework monorepo)
+# Product: Lantern — Ori is my light. Lantern is how it shines on the web.
 # Usage: tools/ori-web <command> …
 #
 # Commands:
@@ -25,7 +26,8 @@ info() { echo "$*"; }
 
 cmd_help() {
   cat <<'EOF'
-ori-web — Ori web framework CLI
+ori-web — Lantern developer CLI
+  Ori is my light. Lantern is how it shines on the web.
 
 Usage:
   ori-web new <name> [dir] [--template=T] [--ui=U]

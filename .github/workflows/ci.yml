@@ -1,0 +1,46 @@
+name: Lantern CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  p0:
+    name: P0 quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ori
+        run: |
+          set -euo pipefail
+          # Prefer a release asset if available; fallback to cargo build is heavy.
+          # CI expects ORI_BIN on PATH after install script or cache.
+          if command -v ori >/dev/null 2>&1; then
+            ori --version
+            exit 0
+          fi
+          echo "Ori not preinstalled — attempting download from GitHub releases"
+          # Placeholder: maintainers should pin a release URL when packaging is stable.
+          # Until then, skip hard-fail only if ORI_CI_OPTIONAL=1
+          if [ "${ORI_CI_OPTIONAL:-0}" = "1" ]; then
+            echo "ORI_CI_OPTIONAL=1 — skipping"
+            exit 0
+          fi
+          curl -fsSL -o /tmp/install-ori.sh \
+            https://raw.githubusercontent.com/raillen/ori-lang/master/tools/install.sh \
+            || true
+          if [ -f /tmp/install-ori.sh ]; then
+            sh /tmp/install-ori.sh || true
+          fi
+          if ! command -v ori >/dev/null 2>&1; then
+            echo "::warning::ori not found on runner; P0 scripts need Ori. Install Ori in CI secrets/cache."
+            exit 1
+          fi
+          ori --version
+
+      - name: P0 scripts
+        run: |
+          chmod +x tools/qa/*.sh
+          ./tools/qa/run_p0.sh

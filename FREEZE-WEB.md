@@ -1,8 +1,9 @@
-# Web stack — feature freeze (v1)
+# Lantern — feature freeze (v1)
 
-**Date:** 2026-07-14  
+**Product:** **Lantern** — *Ori is my light. Lantern is how it shines on the web.*  
+**Date:** 2026-07-14 (brand note 2026-07-15)  
 **Scope:** packages under `packages/ori-*` for HTML-first web (not the Ori compiler FREEZE-1).  
-**Public registry name:** **OriLamp** (package index / `ORI_REGISTRY`; host TBD).
+**Public registry:** **OriLamp** (`ORI_REGISTRY`).
 
 ## Frozen surface (do not expand casually)
 
