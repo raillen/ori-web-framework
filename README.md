@@ -96,6 +96,7 @@ You do **not** need every package in every app.
 |------|--------|----------------|
 | **`ori-notes`** | `ori-web` + **`ori-templates`** notes app (Fly-ready) | `3460` / `$PORT` |
 | **`landing-page`** | **Svelte** SPA + Ori static/API (Fly-ready) | `3461` / `$PORT` |
+| **`micro-blog`** | Auth · SQLite · safe Markdown + toolbar | `3470` / `$PORT` |
 | `ori-web-demo` | templates + HTMX notes | `3457` |
 | `ori-web-demo-auth` | TOTP 2FA | `3459` |
 | `hello_server` | minimal | `3456` |

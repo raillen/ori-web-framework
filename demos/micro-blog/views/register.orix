@@ -1,0 +1,20 @@
+@{ layout "layouts/app" }
+@{ assign title = "Register" }
+
+<section class="card narrow">
+  <h1>Register</h1>
+  <form method="post" action="/register" class="stack">
+    <input type="hidden" name="csrf_token" value="@{ csrf_token }">
+    <label>Username
+      <input name="username" required autocomplete="username" maxlength="32" pattern="[A-Za-z0-9_]{3,32}"
+             title="3–32 letters, digits, underscore">
+    </label>
+    <label>Password (min 8)
+      <input type="password" name="password" required autocomplete="new-password" minlength="8">
+    </label>
+    <button type="submit" class="btn">Create account</button>
+  </form>
+  <p class="muted">Already registered? <a href="/login">Sign in</a></p>
+</section>
+
+@{ end }

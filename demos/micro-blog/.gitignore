@@ -1,0 +1,7 @@
+micro-blog
+microblog.db
+microblog_sessions.db
+*.db
+.sessions/
+audit.log
+var/

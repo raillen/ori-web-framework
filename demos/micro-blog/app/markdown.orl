@@ -1,0 +1,319 @@
+module app.markdown
+
+-- Safe subset markdown → HTML. Escape text; emit only known tags.
+-- Headings, paragraphs, lists, **bold**, *italic*, `code`, links, fences.
+
+import ori.string = str
+import ori.list = lists
+
+public escape_html(s: string) -> string
+    var out: string = s
+    out = str.replace_all(out, "&", "&amp;")
+    out = str.replace_all(out, "<", "&lt;")
+    out = str.replace_all(out, ">", "&gt;")
+    out = str.replace_all(out, "\"", "&quot;")
+    out = str.replace_all(out, "'", "&#39;")
+    return out
+end
+
+public safe_url(url: string) -> string
+    const u: string = str.trim(url)
+    if str.starts_with(u, "https://")
+        return u
+    end
+    if str.starts_with(u, "http://")
+        return u
+    end
+    if str.starts_with(u, "/")
+        if not str.contains(u, "://")
+            return u
+        end
+    end
+    return ""
+end
+
+wrap_marker(s: string, marker: string, open: string, close_tag: string) -> string
+    const mlen: int = str.len(marker)
+    var out: string = ""
+    var i: int = 0
+    const n: int = str.len(s)
+    while i < n
+        var advanced: bool = false
+        if i + mlen <= n
+            if str.slice(s, i, i + mlen) == marker
+                const rest: string = str.slice(s, i + mlen, n)
+                const close_at: int = str.index_of(rest, marker)
+                if close_at > 0
+                    const inner: string = str.slice(rest, 0, close_at)
+                    out = str.concat(out, open)
+                    out = str.concat(out, inner)
+                    out = str.concat(out, close_tag)
+                    i = i + mlen + close_at + mlen
+                    advanced = true
+                end
+            end
+        end
+        if not advanced
+            out = str.concat(out, str.slice(s, i, i + 1))
+            i = i + 1
+        end
+    end
+    return out
+end
+
+replace_code_spans(s: string) -> string
+    var out: string = ""
+    var i: int = 0
+    const n: int = str.len(s)
+    while i < n
+        if str.slice(s, i, i + 1) == "`"
+            const rest: string = str.slice(s, i + 1, n)
+            const close: int = str.index_of(rest, "`")
+            if close >= 0
+                out = str.concat(out, "<code>")
+                out = str.concat(out, str.slice(rest, 0, close))
+                out = str.concat(out, "</code>")
+                i = i + 2 + close
+            else
+                out = str.concat(out, "`")
+                i = i + 1
+            end
+        else
+            out = str.concat(out, str.slice(s, i, i + 1))
+            i = i + 1
+        end
+    end
+    return out
+end
+
+replace_links(s: string) -> string
+    var out: string = ""
+    var i: int = 0
+    const n: int = str.len(s)
+    while i < n
+        var took: bool = false
+        if str.slice(s, i, i + 1) == "["
+            const rest: string = str.slice(s, i + 1, n)
+            const br: int = str.index_of(rest, "](")
+            if br >= 0
+                const after: string = str.slice(rest, br + 2, str.len(rest))
+                const close: int = str.index_of(after, ")")
+                if close >= 0
+                    const label: string = str.slice(rest, 0, br)
+                    var url: string = str.slice(after, 0, close)
+                    url = str.replace_all(url, "&amp;", "&")
+                    url = str.replace_all(url, "&quot;", "\"")
+                    const safe: string = safe_url(url)
+                    if str.len(safe) > 0
+                        out = str.concat(out, "<a href=\"")
+                        out = str.concat(out, escape_html(safe))
+                        out = str.concat(out, "\" rel=\"noopener noreferrer\">")
+                        out = str.concat(out, label)
+                        out = str.concat(out, "</a>")
+                        i = i + 1 + br + 2 + close + 1
+                        took = true
+                    end
+                end
+            end
+        end
+        if not took
+            out = str.concat(out, str.slice(s, i, i + 1))
+            i = i + 1
+        end
+    end
+    return out
+end
+
+replace_italic(s: string) -> string
+    var out: string = ""
+    var i: int = 0
+    const n: int = str.len(s)
+    while i < n
+        var took: bool = false
+        if str.slice(s, i, i + 1) == "*"
+            if i + 1 < n
+                if str.slice(s, i + 1, i + 2) != "*"
+                    const rest: string = str.slice(s, i + 1, n)
+                    const close: int = str.index_of(rest, "*")
+                    if close > 0
+                        out = str.concat(out, "<em>")
+                        out = str.concat(out, str.slice(rest, 0, close))
+                        out = str.concat(out, "</em>")
+                        i = i + 2 + close
+                        took = true
+                    end
+                end
+            end
+        end
+        if not took
+            out = str.concat(out, str.slice(s, i, i + 1))
+            i = i + 1
+        end
+    end
+    return out
+end
+
+inline_md(s: string) -> string
+    var t: string = escape_html(s)
+    t = replace_code_spans(t)
+    t = replace_links(t)
+    t = wrap_marker(t, "**", "<strong>", "</strong>")
+    t = replace_italic(t)
+    return t
+end
+
+append_para(html: string, para: string) -> string
+    if str.len(str.trim(para)) == 0
+        return html
+    end
+    var out: string = html
+    out = str.concat(out, "<p>")
+    out = str.concat(out, inline_md(str.trim(para)))
+    out = str.concat(out, "</p>\n")
+    return out
+end
+
+public render(md: string) -> string
+    const fence: string = str.concat(str.concat("`", "`"), "`")
+    const lines: list[string] = str.split(md, "\n")
+    var html: string = ""
+    var i: int = 0
+    const n: int = lists.len(lines)
+    var in_ul: bool = false
+    var in_code: bool = false
+    var code_buf: string = ""
+    var para: string = ""
+
+    while i < n
+        const line: string = lines[i]
+        const trimmed: string = str.trim(line)
+        var handled: bool = false
+
+        if in_code
+            handled = true
+            if str.starts_with(trimmed, fence)
+                html = str.concat(html, "<pre><code>")
+                html = str.concat(html, escape_html(code_buf))
+                html = str.concat(html, "</code></pre>\n")
+                code_buf = ""
+                in_code = false
+            end
+            if not str.starts_with(trimmed, fence)
+                if str.len(code_buf) > 0
+                    code_buf = str.concat(code_buf, "\n")
+                end
+                code_buf = str.concat(code_buf, line)
+            end
+        end
+
+        if not handled
+            if str.starts_with(trimmed, fence)
+                handled = true
+                html = append_para(html, para)
+                para = ""
+                if in_ul
+                    html = str.concat(html, "</ul>\n")
+                    in_ul = false
+                end
+                in_code = true
+                code_buf = ""
+            end
+        end
+
+        if not handled
+            if str.len(trimmed) == 0
+                handled = true
+                html = append_para(html, para)
+                para = ""
+                if in_ul
+                    html = str.concat(html, "</ul>\n")
+                    in_ul = false
+                end
+            end
+        end
+
+        if not handled
+            if str.starts_with(line, "### ")
+                handled = true
+                html = append_para(html, para)
+                para = ""
+                if in_ul
+                    html = str.concat(html, "</ul>\n")
+                    in_ul = false
+                end
+                html = str.concat(html, "<h3>")
+                html = str.concat(html, inline_md(str.slice(line, 4, str.len(line))))
+                html = str.concat(html, "</h3>\n")
+            end
+        end
+
+        if not handled
+            if str.starts_with(line, "## ")
+                handled = true
+                html = append_para(html, para)
+                para = ""
+                if in_ul
+                    html = str.concat(html, "</ul>\n")
+                    in_ul = false
+                end
+                html = str.concat(html, "<h2>")
+                html = str.concat(html, inline_md(str.slice(line, 3, str.len(line))))
+                html = str.concat(html, "</h2>\n")
+            end
+        end
+
+        if not handled
+            if str.starts_with(line, "# ")
+                handled = true
+                html = append_para(html, para)
+                para = ""
+                if in_ul
+                    html = str.concat(html, "</ul>\n")
+                    in_ul = false
+                end
+                html = str.concat(html, "<h1>")
+                html = str.concat(html, inline_md(str.slice(line, 2, str.len(line))))
+                html = str.concat(html, "</h1>\n")
+            end
+        end
+
+        if not handled
+            if str.starts_with(line, "- ")
+                handled = true
+                html = append_para(html, para)
+                para = ""
+                if not in_ul
+                    html = str.concat(html, "<ul>\n")
+                    in_ul = true
+                end
+                html = str.concat(html, "<li>")
+                html = str.concat(html, inline_md(str.slice(line, 2, str.len(line))))
+                html = str.concat(html, "</li>\n")
+            end
+        end
+
+        if not handled
+            if in_ul
+                html = str.concat(html, "</ul>\n")
+                in_ul = false
+            end
+            if str.len(para) > 0
+                para = str.concat(para, " ")
+            end
+            para = str.concat(para, line)
+        end
+
+        i = i + 1
+    end
+
+    if in_code
+        html = str.concat(html, "<pre><code>")
+        html = str.concat(html, escape_html(code_buf))
+        html = str.concat(html, "</code></pre>\n")
+    end
+    html = append_para(html, para)
+    if in_ul
+        html = str.concat(html, "</ul>\n")
+    end
+    return html
+end

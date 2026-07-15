@@ -1,0 +1,424 @@
+module app.main
+
+-- micro-blog: auth (argon2) + SQLite posts + safe markdown + toolbar editor.
+-- Security: CSRF, session regenerate, login lockout, prepared SQL, HTML escape in MD.
+
+import web = web
+import templates = tpl
+import web_session_sqlite = ssql
+import app.store = store
+import app.markdown = md
+import ori.io = io
+import ori.map = maps
+import ori.list = lists
+import ori.string = str
+import ori.os = os
+import ori.convert = conv
+
+var VIEWS: tpl.Engine = tpl.open("views")
+
+listen_host() -> string
+    return os.env_or("ORI_HOST", "127.0.0.1")
+end
+
+listen_port() -> int
+    return conv.parse_int_or(os.env_or("PORT", "3470"), 3470)
+end
+
+db_path() -> string
+    return os.env_or("MICROBLOG_DB", "microblog.db")
+end
+
+session_path() -> string
+    return os.env_or("MICROBLOG_SESSION_DB", "microblog_sessions.db")
+end
+
+base_ctx(req: web.Request) -> tpl.Data
+    var d: tpl.Data = tpl.empty_data()
+    tpl.set_value(d, "csrf_token", web.csrf_token(req))
+    tpl.set_value(d, "flash_notice", "")
+    tpl.set_value(d, "flash_error", "")
+    tpl.set_value(d, "user", "")
+    tpl.set_value(d, "logged_in", "false")
+    match web.take_flash(req, "notice")
+    case some(msg):
+        tpl.set_value(d, "flash_notice", msg)
+    case none:
+    end
+    match web.take_flash(req, "error")
+    case some(msg):
+        tpl.set_value(d, "flash_error", msg)
+    case none:
+    end
+    match web.session_get(req, "user_name")
+    case some(u):
+        if str.len(u) > 0
+            tpl.set_value(d, "user", u)
+            tpl.set_value(d, "logged_in", "true")
+        end
+    case none:
+    end
+    return d
+end
+
+current_user_id(req: web.Request) -> int
+    match web.session_get(req, "user_id")
+    case some(s):
+        return conv.parse_int_or(s, 0)
+    case none:
+        return 0
+    end
+    return 0
+end
+
+require_login(req: web.Request) -> bool
+    return current_user_id(req) > 0
+end
+
+render(name: string, d: tpl.Data) -> web.ActionResult
+    match tpl.render(VIEWS, name, d)
+    case ok(html):
+        return ok(web.html(200, html))
+    case err(e):
+        return ok(web.text(500, tpl.error_message(e)))
+    end
+    return ok(web.not_found())
+end
+
+-- —— Pages ——
+
+home(req: web.Request) -> web.ActionResult
+    var d: tpl.Data = base_ctx(req)
+    tpl.set_value(d, "title", "Micro-blog")
+    const posts: list[store.Post] = store.list_posts(50)
+    -- Pre-build list items (templates only loop one list; escape for XSS).
+    var cards: list[string] = []
+    var i: int = 0
+    while i < lists.len(posts)
+        const p: store.Post = posts[i]
+        var card: string = "<li><a class=\"post-title\" href=\"/posts/"
+        card = str.concat(card, string(p.id))
+        card = str.concat(card, "\">")
+        card = str.concat(card, md.escape_html(p.title))
+        card = str.concat(card, "</a><span class=\"meta\"> by @")
+        card = str.concat(card, md.escape_html(p.username))
+        card = str.concat(card, "</span></li>")
+        lists.push(cards, card)
+        i = i + 1
+    end
+    tpl.set_list(d, "cards", cards)
+    if lists.len(posts) == 0
+        tpl.set_value(d, "empty", "true")
+    else
+        tpl.set_value(d, "empty", "false")
+    end
+    return render("home", d)
+end
+
+show_post(req: web.Request) -> web.ActionResult
+    var id_s: string = "0"
+    if some(v) = maps.try_get(req.params, "id")
+        id_s = v
+    end
+    const id: int = conv.parse_int_or(id_s, 0)
+    match store.get_post(id)
+    case none:
+        return ok(web.not_found())
+    case some(p):
+        var d: tpl.Data = base_ctx(req)
+        tpl.set_value(d, "title", p.title)
+        tpl.set_value(d, "author", p.username)
+        tpl.set_value(d, "post_id", string(p.id))
+        tpl.set_value(d, "body_html", md.render(p.body_md))
+        tpl.set_value(d, "can_edit", "false")
+        if current_user_id(req) == p.user_id
+            tpl.set_value(d, "can_edit", "true")
+        end
+        return render("post_show", d)
+    end
+    return ok(web.not_found())
+end
+
+render_login(req: web.Request) -> web.ActionResult
+    if require_login(req)
+        return ok(web.redirect(303, "/"))
+    end
+    var d: tpl.Data = base_ctx(req)
+    tpl.set_value(d, "title", "Sign in")
+    return render("login", d)
+end
+
+render_register(req: web.Request) -> web.ActionResult
+    if require_login(req)
+        return ok(web.redirect(303, "/"))
+    end
+    var d: tpl.Data = base_ctx(req)
+    tpl.set_value(d, "title", "Register")
+    return render("register", d)
+end
+
+render_new(req: web.Request) -> web.ActionResult
+    if not require_login(req)
+        web.flash(req, "error", "Sign in to write.")
+        return ok(web.redirect(303, "/login"))
+    end
+    var d: tpl.Data = base_ctx(req)
+    tpl.set_value(d, "title", "New post")
+    tpl.set_value(d, "form_title", "")
+    tpl.set_value(d, "form_body", "")
+    tpl.set_value(d, "form_action", "/posts")
+    tpl.set_value(d, "submit_label", "Publish")
+    return render("post_form", d)
+end
+
+render_edit(req: web.Request) -> web.ActionResult
+    if not require_login(req)
+        return ok(web.redirect(303, "/login"))
+    end
+    var id_s: string = "0"
+    if some(v) = maps.try_get(req.params, "id")
+        id_s = v
+    end
+    const id: int = conv.parse_int_or(id_s, 0)
+    match store.get_post(id)
+    case none:
+        return ok(web.not_found())
+    case some(p):
+        if p.user_id != current_user_id(req)
+            web.flash(req, "error", "Not your post.")
+            return ok(web.redirect(303, "/"))
+        end
+        var d: tpl.Data = base_ctx(req)
+        tpl.set_value(d, "title", "Edit post")
+        tpl.set_value(d, "form_title", p.title)
+        tpl.set_value(d, "form_body", p.body_md)
+        tpl.set_value(d, "form_action", str.concat("/posts/", str.concat(string(p.id), "/edit")))
+        tpl.set_value(d, "submit_label", "Save")
+        return render("post_form", d)
+    end
+    return ok(web.not_found())
+end
+
+-- —— Actions ——
+
+do_register(req: web.Request) -> web.ActionResult
+    const form: map[string, string] = web.form_body(req)
+    var user: string = ""
+    var pass: string = ""
+    if some(u) = maps.try_get(form, "username")
+        user = str.trim(u)
+    end
+    if some(p) = maps.try_get(form, "password")
+        pass = p
+    end
+    const lock_key: string = str.concat("register:", web.client_key(req, false))
+    if not web.login_allowed(lock_key)
+        web.flash(req, "error", "Too many attempts. Try later.")
+        return ok(web.redirect(303, "/register"))
+    end
+    match store.register_user(user, pass)
+    case err(e):
+        web.login_fail(lock_key, 10, 60000)
+        web.flash(req, "error", e)
+        web.audit("register.fail", user)
+        return ok(web.redirect(303, "/register"))
+    case ok(u):
+        web.login_success(lock_key)
+        const _sid: string = web.session_regenerate(req)
+        web.session_set(req, "user_id", string(u.id))
+        web.session_set(req, "user_name", u.username)
+        web.flash(req, "notice", "Welcome — account created.")
+        web.audit("register.ok", u.username)
+        return ok(web.redirect(303, "/"))
+    end
+    return ok(web.redirect(303, "/register"))
+end
+
+do_login(req: web.Request) -> web.ActionResult
+    const form: map[string, string] = web.form_body(req)
+    var user: string = ""
+    var pass: string = ""
+    if some(u) = maps.try_get(form, "username")
+        user = str.trim(u)
+    end
+    if some(p) = maps.try_get(form, "password")
+        pass = p
+    end
+    const lock_key: string = str.concat("login:", user)
+    if not web.login_allowed(lock_key)
+        web.flash(req, "error", "Too many failures. Try later.")
+        web.audit("login.lockout", user)
+        return ok(web.redirect(303, "/login"))
+    end
+    match store.verify_login(user, pass)
+    case none:
+        web.login_fail(lock_key, 5, 60000)
+        web.flash(req, "error", "Invalid username or password.")
+        web.audit("login.fail", user)
+        return ok(web.redirect(303, "/login"))
+    case some(u):
+        web.login_success(lock_key)
+        const _sid: string = web.session_regenerate(req)
+        web.session_set(req, "user_id", string(u.id))
+        web.session_set(req, "user_name", u.username)
+        web.flash(req, "notice", "Signed in.")
+        web.audit("login.ok", u.username)
+        return ok(web.redirect(303, "/"))
+    end
+    return ok(web.redirect(303, "/login"))
+end
+
+do_logout(req: web.Request) -> web.ActionResult
+    var who: string = ""
+    match web.session_get(req, "user_name")
+    case some(u):
+        who = u
+    case none:
+    end
+    web.session_set(req, "user_id", "")
+    web.session_set(req, "user_name", "")
+    const _sid: string = web.session_regenerate(req)
+    web.flash(req, "notice", "Signed out.")
+    web.audit("logout", who)
+    return ok(web.redirect(303, "/"))
+end
+
+do_create_post(req: web.Request) -> web.ActionResult
+    const uid: int = current_user_id(req)
+    if uid < 1
+        return ok(web.redirect(303, "/login"))
+    end
+    const form: map[string, string] = web.form_body(req)
+    var title: string = ""
+    var body: string = ""
+    if some(t) = maps.try_get(form, "title")
+        title = t
+    end
+    if some(b) = maps.try_get(form, "body")
+        body = b
+    end
+    match store.create_post(uid, title, body)
+    case err(e):
+        web.flash(req, "error", e)
+        return ok(web.redirect(303, "/posts/new"))
+    case ok(id):
+        web.flash(req, "notice", "Published.")
+        web.audit("post.create", string(id))
+        return ok(web.redirect(303, str.concat("/posts/", string(id))))
+    end
+    return ok(web.redirect(303, "/"))
+end
+
+do_update_post(req: web.Request) -> web.ActionResult
+    const uid: int = current_user_id(req)
+    if uid < 1
+        return ok(web.redirect(303, "/login"))
+    end
+    var id_s: string = "0"
+    if some(v) = maps.try_get(req.params, "id")
+        id_s = v
+    end
+    const id: int = conv.parse_int_or(id_s, 0)
+    const form: map[string, string] = web.form_body(req)
+    var title: string = ""
+    var body: string = ""
+    if some(t) = maps.try_get(form, "title")
+        title = t
+    end
+    if some(b) = maps.try_get(form, "body")
+        body = b
+    end
+    match store.update_post(id, uid, title, body)
+    case err(e):
+        web.flash(req, "error", e)
+        return ok(web.redirect(303, str.concat("/posts/", str.concat(string(id), "/edit"))))
+    case ok(_):
+        web.flash(req, "notice", "Saved.")
+        web.audit("post.update", string(id))
+        return ok(web.redirect(303, str.concat("/posts/", string(id))))
+    end
+    return ok(web.redirect(303, "/"))
+end
+
+do_delete_post(req: web.Request) -> web.ActionResult
+    const uid: int = current_user_id(req)
+    if uid < 1
+        return ok(web.redirect(303, "/login"))
+    end
+    var id_s: string = "0"
+    if some(v) = maps.try_get(req.params, "id")
+        id_s = v
+    end
+    const id: int = conv.parse_int_or(id_s, 0)
+    match store.delete_post(id, uid)
+    case err(e):
+        web.flash(req, "error", e)
+    case ok(_):
+        web.flash(req, "notice", "Deleted.")
+        web.audit("post.delete", string(id))
+    end
+    return ok(web.redirect(303, "/"))
+end
+
+health(_req: web.Request) -> web.ActionResult
+    return ok(web.text(200, "ok"))
+end
+
+setup() -> result[void, string]
+    match store.open(db_path())
+    case err(e):
+        return err(e)
+    case ok(_):
+    end
+    match ssql.use_sqlite_sessions(session_path())
+    case err(e):
+        io.println(str.concat("sessions sqlite failed: ", e))
+        web.use_file_sessions(".sessions")
+        io.println("session backend: file")
+    case ok(_):
+        io.println(str.concat("session backend: sqlite (", str.concat(session_path(), ")")))
+    end
+    return ok()
+end
+
+main()
+    match setup()
+    case err(e):
+        io.println(str.concat("fatal: ", e))
+        return
+    case ok(_):
+    end
+
+    var a: web.App = web.app()
+    a = web.set_rate_limit(a, 60)
+    a = web.set_csrf_rotate(a, true)
+    a = web.set_csp(
+        a,
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    web.set_audit_log("audit.log")
+    web.static(a, "/assets", "public")
+
+    web.get(a, "/healthz", health)
+    web.get(a, "/", home)
+    web.get(a, "/login", render_login)
+    web.post(a, "/login", do_login)
+    web.get(a, "/register", render_register)
+    web.post(a, "/register", do_register)
+    web.post(a, "/logout", do_logout)
+    web.get(a, "/posts/new", render_new)
+    web.post(a, "/posts", do_create_post)
+    web.get(a, "/posts/:id", show_post)
+    web.get(a, "/posts/:id/edit", render_edit)
+    web.post(a, "/posts/:id/edit", do_update_post)
+    web.post(a, "/posts/:id/delete", do_delete_post)
+
+    const host: string = listen_host()
+    const port: int = listen_port()
+    io.println(str.concat("micro-blog on http://", str.concat(host, str.concat(":", string(port)))))
+    match web.serve(host, port, a)
+    case ok(_):
+    case err(msg):
+        io.println(msg)
+    end
+end

@@ -1,0 +1,340 @@
+module app.store
+
+-- SQLite persistence for users + posts. All user input via prepared statements.
+
+import sqlite.db = sql
+import ori.list = lists
+import ori.string = str
+import ori.crypto = crypto
+import ori.time = time
+import ori.io = io
+
+public struct User
+    id: int
+    username: string
+end
+
+public struct Post
+    id: int
+    user_id: int
+    username: string
+    title: string
+    body_md: string
+    created_ms: int
+    updated_ms: int
+end
+
+var DB: sql.Db = sql.Db { id: -1 }
+var READY: bool = false
+
+public is_ready() -> bool
+    return READY
+end
+
+public open(path: string) -> result[void, string]
+    if READY
+        return ok()
+    end
+    DB = sql.open(path)
+    if not sql.is_open(DB)
+        return err("sqlite open failed")
+    end
+    if not sql.exec_ok(
+        DB,
+        "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, created_ms INTEGER NOT NULL)"
+    )
+        return err(sql.last_error())
+    end
+    if not sql.exec_ok(
+        DB,
+        "CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, body_md TEXT NOT NULL, created_ms INTEGER NOT NULL, updated_ms INTEGER NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))"
+    )
+        return err(sql.last_error())
+    end
+    if not sql.exec_ok(DB, "CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_ms DESC)")
+        return err(sql.last_error())
+    end
+    READY = true
+    io.println(str.concat("store: ", path))
+    return ok()
+end
+
+public close() -> void
+    if READY
+        sql.close(DB)
+        READY = false
+    end
+end
+
+now_ms() -> int
+    return time.instant_to_unix_ms(time.instant_now())
+end
+
+-- Username: 3–32 chars, [a-zA-Z0-9_]-ish
+public valid_username(u: string) -> bool
+    const n: int = str.len(u)
+    if n < 3
+        return false
+    end
+    if n > 32
+        return false
+    end
+    var i: int = 0
+    while i < n
+        const ch: string = str.slice(u, i, i + 1)
+        if not str.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", ch)
+            return false
+        end
+        i = i + 1
+    end
+    return true
+end
+
+public valid_password(p: string) -> bool
+    return str.len(p) >= 8
+end
+
+public find_user_by_name(username: string) -> optional[User]
+    if not READY
+        return none
+    end
+    const st: sql.Stmt = sql.prepare(DB, "SELECT id, username FROM users WHERE username = ? LIMIT 1")
+    if not sql.is_prepared(st)
+        return none
+    end
+    const _b: int = sql.bind_text(st, 1, username)
+    if not sql.step_row(st)
+        sql.finalize(st)
+        return none
+    end
+    const u: User = User { id: sql.column_int(st, 0), username: sql.column_text(st, 1) }
+    sql.finalize(st)
+    return some(u)
+end
+
+public verify_login(username: string, password: string) -> optional[User]
+    if not READY
+        return none
+    end
+    const st: sql.Stmt = sql.prepare(DB, "SELECT id, username, password_hash FROM users WHERE username = ? LIMIT 1")
+    if not sql.is_prepared(st)
+        return none
+    end
+    const _b: int = sql.bind_text(st, 1, username)
+    if not sql.step_row(st)
+        sql.finalize(st)
+        return none
+    end
+    const id: int = sql.column_int(st, 0)
+    const uname: string = sql.column_text(st, 1)
+    const hash: string = sql.column_text(st, 2)
+    sql.finalize(st)
+    if not crypto.verify_password(password, hash)
+        return none
+    end
+    return some(User { id: id, username: uname })
+end
+
+public register_user(username: string, password: string) -> result[User, string]
+    if not READY
+        return err("store closed")
+    end
+    if not valid_username(username)
+        return err("Username must be 3–32 letters, digits, or underscore.")
+    end
+    if not valid_password(password)
+        return err("Password must be at least 8 characters.")
+    end
+    match find_user_by_name(username)
+    case some(_):
+        return err("Username already taken.")
+    case none:
+    end
+    const hash: string = crypto.hash_password(password)
+    const st: sql.Stmt = sql.prepare(
+        DB,
+        "INSERT INTO users (username, password_hash, created_ms) VALUES (?, ?, ?)"
+    )
+    if not sql.is_prepared(st)
+        return err("prepare failed")
+    end
+    const _b1: int = sql.bind_text(st, 1, username)
+    const _b2: int = sql.bind_text(st, 2, hash)
+    const _b3: int = sql.bind_int(st, 3, now_ms())
+    if not sql.step_done(st)
+        sql.finalize(st)
+        return err("Could not create user.")
+    end
+    sql.finalize(st)
+    const id: int = sql.last_insert_rowid(DB)
+    return ok(User { id: id, username: username })
+end
+
+public list_posts(limit: int) -> list[Post]
+    var out: list[Post] = []
+    if not READY
+        return out
+    end
+    var lim: int = limit
+    if lim < 1
+        lim = 20
+    end
+    if lim > 100
+        lim = 100
+    end
+    const st: sql.Stmt = sql.prepare(
+        DB,
+        "SELECT p.id, p.user_id, u.username, p.title, p.body_md, p.created_ms, p.updated_ms FROM posts p JOIN users u ON u.id = p.user_id ORDER BY p.created_ms DESC LIMIT ?"
+    )
+    if not sql.is_prepared(st)
+        return out
+    end
+    const _b: int = sql.bind_int(st, 1, lim)
+    while sql.step_row(st)
+        const row: Post = Post {
+            id: sql.column_int(st, 0),
+            user_id: sql.column_int(st, 1),
+            username: sql.column_text(st, 2),
+            title: sql.column_text(st, 3),
+            body_md: sql.column_text(st, 4),
+            created_ms: sql.column_int(st, 5),
+            updated_ms: sql.column_int(st, 6)
+        }
+        lists.push(out, row)
+    end
+    sql.finalize(st)
+    return out
+end
+
+public get_post(id: int) -> optional[Post]
+    if not READY
+        return none
+    end
+    if id < 1
+        return none
+    end
+    const st: sql.Stmt = sql.prepare(
+        DB,
+        "SELECT p.id, p.user_id, u.username, p.title, p.body_md, p.created_ms, p.updated_ms FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ? LIMIT 1"
+    )
+    if not sql.is_prepared(st)
+        return none
+    end
+    const _b: int = sql.bind_int(st, 1, id)
+    if not sql.step_row(st)
+        sql.finalize(st)
+        return none
+    end
+    const row: Post = Post {
+        id: sql.column_int(st, 0),
+        user_id: sql.column_int(st, 1),
+        username: sql.column_text(st, 2),
+        title: sql.column_text(st, 3),
+        body_md: sql.column_text(st, 4),
+        created_ms: sql.column_int(st, 5),
+        updated_ms: sql.column_int(st, 6)
+    }
+    sql.finalize(st)
+    return some(row)
+end
+
+public create_post(user_id: int, title: string, body_md: string) -> result[int, string]
+    if not READY
+        return err("store closed")
+    end
+    const t: string = str.trim(title)
+    const b: string = str.trim(body_md)
+    if str.len(t) < 1
+        return err("Title is required.")
+    end
+    if str.len(t) > 200
+        return err("Title is too long (max 200).")
+    end
+    if str.len(b) < 1
+        return err("Body is required.")
+    end
+    if str.len(b) > 20000
+        return err("Body is too long (max 20000).")
+    end
+    const ms: int = now_ms()
+    const st: sql.Stmt = sql.prepare(
+        DB,
+        "INSERT INTO posts (user_id, title, body_md, created_ms, updated_ms) VALUES (?, ?, ?, ?, ?)"
+    )
+    if not sql.is_prepared(st)
+        return err("prepare failed")
+    end
+    const _b1: int = sql.bind_int(st, 1, user_id)
+    const _b2: int = sql.bind_text(st, 2, t)
+    const _b3: int = sql.bind_text(st, 3, b)
+    const _b4: int = sql.bind_int(st, 4, ms)
+    const _b5: int = sql.bind_int(st, 5, ms)
+    if not sql.step_done(st)
+        sql.finalize(st)
+        return err("Could not create post.")
+    end
+    sql.finalize(st)
+    return ok(sql.last_insert_rowid(DB))
+end
+
+public update_post(id: int, user_id: int, title: string, body_md: string) -> result[void, string]
+    if not READY
+        return err("store closed")
+    end
+    const t: string = str.trim(title)
+    const b: string = str.trim(body_md)
+    if str.len(t) < 1
+        return err("Title is required.")
+    end
+    if str.len(t) > 200
+        return err("Title is too long (max 200).")
+    end
+    if str.len(b) < 1
+        return err("Body is required.")
+    end
+    if str.len(b) > 20000
+        return err("Body is too long (max 20000).")
+    end
+    const st: sql.Stmt = sql.prepare(
+        DB,
+        "UPDATE posts SET title = ?, body_md = ?, updated_ms = ? WHERE id = ? AND user_id = ?"
+    )
+    if not sql.is_prepared(st)
+        return err("prepare failed")
+    end
+    const _b1: int = sql.bind_text(st, 1, t)
+    const _b2: int = sql.bind_text(st, 2, b)
+    const _b3: int = sql.bind_int(st, 3, now_ms())
+    const _b4: int = sql.bind_int(st, 4, id)
+    const _b5: int = sql.bind_int(st, 5, user_id)
+    if not sql.step_done(st)
+        sql.finalize(st)
+        return err("Update failed.")
+    end
+    sql.finalize(st)
+    if sql.changes(DB) < 1
+        return err("Post not found or not yours.")
+    end
+    return ok()
+end
+
+public delete_post(id: int, user_id: int) -> result[void, string]
+    if not READY
+        return err("store closed")
+    end
+    const st: sql.Stmt = sql.prepare(DB, "DELETE FROM posts WHERE id = ? AND user_id = ?")
+    if not sql.is_prepared(st)
+        return err("prepare failed")
+    end
+    const _b1: int = sql.bind_int(st, 1, id)
+    const _b2: int = sql.bind_int(st, 2, user_id)
+    if not sql.step_done(st)
+        sql.finalize(st)
+        return err("Delete failed.")
+    end
+    sql.finalize(st)
+    if sql.changes(DB) < 1
+        return err("Post not found or not yours.")
+    end
+    return ok()
+end

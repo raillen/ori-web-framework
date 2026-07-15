@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>@{ title } · Micro-blog</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/md-editor.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">Micro-blog</a>
+    <nav>
+      @{ if logged_in }
+      <span class="who">@ @{ user }</span>
+      <a href="/posts/new">Write</a>
+      <form class="inline" method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="@{ csrf_token }">
+        <button type="submit" class="linkish">Sign out</button>
+      </form>
+      @{ else }
+      <a href="/login">Sign in</a>
+      <a class="btn-sm" href="/register">Register</a>
+      @{ end }
+    </nav>
+  </header>
+
+  @{ if flash_notice }
+  <div class="flash ok" role="status">@{ flash_notice }</div>
+  @{ end }
+  @{ if flash_error }
+  <div class="flash err" role="alert">@{ flash_error }</div>
+  @{ end }
+
+  <main class="wrap">
+    @{ content |> raw }
+  </main>
+
+  <footer class="foot">
+    <p>ori-web · SQLite · argon2 · safe markdown · CSRF</p>
+  </footer>
+</body>
+</html>

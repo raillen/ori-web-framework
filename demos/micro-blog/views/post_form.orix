@@ -1,0 +1,32 @@
+@{ layout "layouts/app" }
+@{ assign title = title }
+
+<section class="card">
+  <h1>@{ title }</h1>
+  <form method="post" action="@{ form_action }" class="stack" id="post-form">
+    <input type="hidden" name="csrf_token" value="@{ csrf_token }">
+    <label>Title
+      <input name="title" required maxlength="200" value="@{ form_title }" autocomplete="off">
+    </label>
+    <div class="md-toolbar" data-md-toolbar data-target="body">
+      <button type="button" data-md="bold" title="Bold">B</button>
+      <button type="button" data-md="italic" title="Italic"><em>I</em></button>
+      <button type="button" data-md="code" title="Code">`</button>
+      <button type="button" data-md="h2" title="Heading">H2</button>
+      <button type="button" data-md="list" title="List">•</button>
+      <button type="button" data-md="link" title="Link">Link</button>
+      <button type="button" data-md="fence" title="Code block">Code block</button>
+    </div>
+    <label>Body (Markdown)
+      <textarea name="body" id="body" required rows="12" maxlength="20000"
+                placeholder="Write **markdown** here…">@{ form_body }</textarea>
+    </label>
+    <p class="muted small">Supported: headings, lists, bold, italic, code, links (http/https only). HTML is escaped.</p>
+    <div class="actions">
+      <button type="submit" class="btn">@{ submit_label }</button>
+      <a class="btn ghost" href="/">Cancel</a>
+    </div>
+  </form>
+</section>
+
+@{ end }

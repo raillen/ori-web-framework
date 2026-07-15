@@ -1,0 +1,12 @@
+manifest = 1
+name = "micro_blog"
+version = "0.1.0"
+kind = "app"
+entry = "main.orl"
+[source]
+root_namespace = "app"
+[dependencies]
+web = { path = "../../packages/ori-web", version = "0.1.0" }
+templates = { path = "../../packages/ori-templates", version = "0.1.0" }
+web_session_sqlite = { path = "../../packages/ori-web-session-sqlite", version = "0.1.0" }
+sqlite = { path = "../../packages/ori-sqlite", version = "0.3.0" }

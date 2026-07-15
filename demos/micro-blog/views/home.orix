@@ -1,0 +1,28 @@
+@{ layout "layouts/app" }
+@{ assign title = "Home" }
+
+<section class="hero">
+  <h1>Micro-blog</h1>
+  <p class="lede">Short posts with Markdown. Auth + SQLite, no raw HTML from users.</p>
+</section>
+
+<section class="feed">
+  <h2>Latest</h2>
+  @{ if empty }
+  <p class="muted">No posts yet.
+    @{ if logged_in }
+    <a href="/posts/new">Write the first</a>.
+    @{ else }
+    <a href="/register">Create an account</a> to write.
+    @{ end }
+  </p>
+  @{ else }
+  <ul class="post-list">
+  @{ for card in cards }
+    @{ card |> raw }
+  @{ end }
+  </ul>
+  @{ end }
+</section>
+
+@{ end }

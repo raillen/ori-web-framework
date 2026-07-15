@@ -1,0 +1,22 @@
+@{ layout "layouts/app" }
+@{ assign title = title }
+
+<article class="card post">
+  <p class="meta"><a href="/">← Feed</a> · @ @{ author }</p>
+  <h1>@{ title }</h1>
+  <div class="prose">
+    @{ body_html |> raw }
+  </div>
+  @{ if can_edit }
+  <div class="actions">
+    <a class="btn ghost" href="/posts/@{ post_id }/edit">Edit</a>
+    <form method="post" action="/posts/@{ post_id }/delete" class="inline"
+          onsubmit="return confirm('Delete this post?');">
+      <input type="hidden" name="csrf_token" value="@{ csrf_token }">
+      <button type="submit" class="btn danger">Delete</button>
+    </form>
+  </div>
+  @{ end }
+</article>
+
+@{ end }
