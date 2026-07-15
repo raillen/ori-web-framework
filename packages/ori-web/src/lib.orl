@@ -12,6 +12,7 @@ import ori.random = rnd
 import ori.time = time
 import ori.os = os
 import ori.convert = conv
+import ori.bytes = bytemod
 
 -- - Types -
 
@@ -1861,8 +1862,11 @@ format_response_conn(res: Response, sid: string, keep_alive: bool) -> string
     else
         out = str.concat(out, "Connection: close\r\n")
     end
+    -- HTTP Content-Length is UTF-8 **bytes**, not Unicode scalar count.
+    -- str.len counts scalars; multi-byte chars (— · → …) would under-report and
+    -- truncate SPA bundles (Vite/Svelte) on the wire.
     out = str.concat(out, "Content-Length: ")
-    out = str.concat(out, string(str.len(res.body)))
+    out = str.concat(out, string(bytemod.len(str.to_bytes(res.body))))
     out = str.concat(out, "\r\n")
     var cookie_name: string = "ori_sid"
     if CFG_HOST_COOKIE
