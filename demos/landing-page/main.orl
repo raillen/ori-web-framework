@@ -80,7 +80,7 @@ main()
     web.use_memory_sessions()
     var a: web.App = web.app()
     a = web.set_rate_limit(a, 240)
-    a = web.set_csp(a, "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'")
+    a = web.set_csp(a, "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'")
 
     web.static(a, "/", "public")
 

@@ -1,20 +1,35 @@
 :root {
   color-scheme: light;
   --ink: #141313;
-  --muted: #6a625a;
+  --ink-soft: #2a2624;
+  --muted: #6f675f;
+  --muted-2: #8a8278;
   --paper: #faf6f0;
+  --paper-deep: #f3ebe0;
   --card: #fffdf9;
-  --line: #e5d9c8;
+  --line: color-mix(in srgb, #d4b893 55%, #fffdf9);
+  --line-strong: #d4b893;
   --accent: #eb772a;
   --accent-deep: #c45e18;
+  --accent-soft: color-mix(in srgb, #eb772a 14%, transparent);
   --tan: #d4b893;
+  --tan-wash: color-mix(in srgb, #d4b893 28%, #fffdf9);
+  --snow: #fefefe;
   --ok: #2f6b45;
-  --font: "Geist", "Inter", system-ui, -apple-system, sans-serif;
-  --mono: "Geist Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --danger: #a33b3b;
+  --font: "Outfit", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", monospace;
+  --radius: 1rem;
+  --radius-sm: 0.65rem;
+  --shadow: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent),
+    0 12px 40px color-mix(in srgb, var(--ink) 5%, transparent);
+  --max: 72rem;
   font-family: var(--font);
+  font-size: 100%;
   line-height: 1.55;
   color: var(--ink);
   background: var(--paper);
+  -webkit-font-smoothing: antialiased;
 }
 
 *,
@@ -23,20 +38,50 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background:
-    radial-gradient(ellipse 70% 45% at 90% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
-    radial-gradient(ellipse 50% 40% at 0% 20%, color-mix(in srgb, var(--tan) 35%, transparent), transparent),
+    radial-gradient(ellipse 90% 55% at 100% -5%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%),
+    radial-gradient(ellipse 60% 45% at -5% 15%, color-mix(in srgb, var(--tan) 40%, transparent), transparent 50%),
+    radial-gradient(ellipse 40% 30% at 70% 100%, color-mix(in srgb, var(--tan) 22%, transparent), transparent 45%),
     var(--paper);
+  background-attachment: fixed;
 }
 
 a {
   color: var(--accent-deep);
 }
 
-code {
+code,
+.mono {
   font-family: var(--mono);
   font-size: 0.9em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, var(--tan-wash));
+  color: var(--ink);
 }
