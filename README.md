@@ -20,15 +20,36 @@ ori-web-framework/
   packages/                 # libraries (path-depend these)
     ori-templates/
     ori-web/
-    ori-web-app/
+    ori-web-app/            # generators, skeletons/, ui-presets/
     ori-web-auth/
     ori-web-session-sqlite/
-  demos/                    # examples (not required for apps)
-  docs/                     # phase B/C/D, middleware
-  tools/qa/                 # smoke scripts
+  demos/                    # product demos (ori-notes, landing-page, …)
+  docs/                     # CLEAN-CODE, CLI, UI-PRESETS, MIGRATIONS, design notes
+  tools/ori-web             # developer CLI
+  tools/qa/
   FREEZE-WEB.md
-  ori-sqlite.README.md      # optional native SQLite link
+  ori-sqlite.README.md
 ```
+
+## CLI (scaffold & serve)
+
+```bash
+./tools/ori-web help
+./tools/ori-web new myapp
+./tools/ori-web new notes --template=notes
+./tools/ori-web new site --template=landing --ui=svelte
+cd myapp && ori get . && ../../tools/ori-web serve
+./tools/ori-web generate scaffold posts   # from app root
+```
+
+| Docs | Topic |
+|------|--------|
+| [`docs/CLEAN-CODE.md`](docs/CLEAN-CODE.md) | Framework + app style (encouraged strongly) |
+| [`docs/CLI.md`](docs/CLI.md) | Templates & generators |
+| [`docs/UI-PRESETS.md`](docs/UI-PRESETS.md) | Optional HTMX / Svelte / Vue / Solid |
+| [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) | **Future** — not implemented |
+
+Official UI presets are **optional**. Core never requires Node. Other fronts still work via `public/`.
 
 ## Prerequisites
 

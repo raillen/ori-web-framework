@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+# ori-web — developer CLI for ori-web-framework
+# Usage: tools/ori-web <command> …
+#
+# Commands:
+#   new <name> [--template=…] [--ui=…] [dir]
+#   serve [dir]
+#   generate controller|scaffold|model <name>
+#   ui list
+#   help
+#
+# Clean-code defaults: thin controllers, explicit routes, no utils dump.
+# UI presets (svelte|vue|solid|htmx) are optional overlays — core never requires Node.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WEB_APP_BIN="$REPO_ROOT/packages/ori-web-app/bin"
+UI_PRESETS="$REPO_ROOT/packages/ori-web-app/ui-presets"
+SKELETONS="$REPO_ROOT/packages/ori-web-app/skeletons"
+
+die() { echo "error: $*" >&2; exit 1; }
+info() { echo "$*"; }
+
+cmd_help() {
+  cat <<'EOF'
+ori-web — Ori web framework CLI
+
+Usage:
+  ori-web new <name> [dir] [--template=T] [--ui=U]
+  ori-web serve [dir]
+  ori-web generate <controller|scaffold|model> <name>
+  ori-web ui list
+  ori-web help
+
+Templates (-t / --template):
+  minimal   Rails-like empty app (default) — web + templates + web_app
+  notes     In-memory notes (ori-templates SSR)
+  blog      Posts list + home (templates)
+  landing   Marketing page (templates; use --ui=svelte for SPA shell)
+
+UI presets (-u / --ui) — optional, never required:
+  none      Server HTML only (default)
+  htmx      HTMX script + progressive enhancement helpers
+  svelte    Vite + Svelte 5 scaffold under frontend/
+  vue       Vite + Vue 3 scaffold under frontend/
+  solid     Vite + SolidJS scaffold under frontend/
+
+Examples:
+  tools/ori-web new myapp
+  tools/ori-web new notes-app --template=notes
+  tools/ori-web new site --template=landing --ui=svelte ./apps/site
+  cd myapp && ../../tools/ori-web serve
+  tools/ori-web generate scaffold posts
+
+Migrations: not implemented yet — see docs/MIGRATIONS.md
+Clean code: see docs/CLEAN-CODE.md
+UI presets: see docs/UI-PRESETS.md
+EOF
+}
+
+rel_to() {
+  python3 - "$1" "$2" <<'PY'
+import os, sys
+print(os.path.relpath(sys.argv[2], sys.argv[1]))
+PY
+}
+
+safe_name() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g'
+}
+
+apply_ui_preset() {
+  local target="$1"
+  local ui="$2"
+  [[ "$ui" == "none" ]] && return 0
+  local src="$UI_PRESETS/$ui"
+  [[ -d "$src" ]] || die "unknown UI preset: $ui (try: ori-web ui list)"
+
+  case "$ui" in
+    htmx)
+      mkdir -p "$target/public"
+      cp -a "$src/." "$target/public/" 2>/dev/null || true
+      if [[ -f "$src/snippet-layout.orix" && -f "$target/views/layouts/app.orix" ]]; then
+        # inject htmx script before </head> if missing
+        if ! grep -q 'htmx.org' "$target/views/layouts/app.orix" 2>/dev/null; then
+          python3 - "$target/views/layouts/app.orix" "$src/snippet-layout.orix" <<'PY'
+import sys
+path, snip = sys.argv[1], open(sys.argv[2]).read().strip()
+text = open(path).read()
+if "</head>" in text and "htmx" not in text.lower():
+    text = text.replace("</head>", snip + "\n</head>", 1)
+    open(path, "w").write(text)
+PY
+        fi
+      fi
+      info "  UI: htmx (public helpers + layout snippet)"
+      ;;
+    svelte|vue|solid)
+      mkdir -p "$target/frontend"
+      cp -a "$src/." "$target/frontend/"
+      # drop any README-only markers
+      info "  UI: $ui → frontend/ (run: cd frontend && npm install && npm run build)"
+      info "  Serve built assets from public/ after npm run build (see frontend/README.md)"
+      ;;
+    *)
+      die "unknown UI preset: $ui"
+      ;;
+  esac
+}
+
+scaffold_minimal() {
+  local name="$1" target="$2"
+  "$WEB_APP_BIN/new" "$name" "$target"
+}
+
+scaffold_from_skeleton() {
+  local skel="$1" name="$2" target="$3"
+  local src="$SKELETONS/$skel"
+  [[ -d "$src" ]] || die "missing skeleton: $skel"
+  local safe
+  safe="$(safe_name "$name")"
+  mkdir -p "$target"
+  # copy tree without overwriting if we just created
+  cp -a "$src/." "$target/"
+  # rewrite package name + path deps
+  local rel_web rel_tpl rel_wa
+  rel_web="$(rel_to "$target" "$REPO_ROOT/packages/ori-web")"
+  rel_tpl="$(rel_to "$target" "$REPO_ROOT/packages/ori-templates")"
+  rel_wa="$(rel_to "$target" "$REPO_ROOT/packages/ori-web-app")"
+  cat > "$target/ori.proj" <<EOF
+manifest = 1
+name = "$safe"
+version = "0.1.0"
+kind = "app"
+entry = "main.orl"
+[source]
+root_namespace = "app"
+[dependencies]
+web = { path = "$rel_web", version = "0.1.0" }
+templates = { path = "$rel_tpl", version = "0.1.0" }
+web_app = { path = "$rel_wa", version = "0.1.0" }
+EOF
+  # soft rename title placeholders
+  if command -v python3 >/dev/null; then
+    python3 - "$target" "$safe" <<'PY'
+import pathlib, sys
+root, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+for p in root.rglob("*"):
+    if p.is_file() and p.suffix in {".orl", ".orix", ".md", ".html", ".css"}:
+        t = p.read_text(encoding="utf-8")
+        n = t.replace("{{APP_NAME}}", name).replace("{{AppName}}", name.replace("-", " ").replace("_", " ").title())
+        if n != t:
+            p.write_text(n, encoding="utf-8")
+PY
+  fi
+  info "created $target (template=$skel)"
+}
+
+cmd_new() {
+  local name="" target="" template="minimal" ui="none"
+  local pos=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --template=*) template="${1#*=}"; shift ;;
+      -t|--template) template="${2:-}"; shift 2 ;;
+      --ui=*) ui="${1#*=}"; shift ;;
+      -u|--ui) ui="${2:-}"; shift 2 ;;
+      -h|--help) cmd_help; return 0 ;;
+      -*)
+        die "unknown flag: $1"
+        ;;
+      *)
+        pos+=("$1"); shift ;;
+    esac
+  done
+  name="${pos[0]:-}"
+  [[ -n "$name" ]] || die "usage: ori-web new <name> [dir] [--template=T] [--ui=U]"
+  target="${pos[1]:-./$(safe_name "$name")}"
+  [[ ! -e "$target" ]] || die "target exists: $target"
+
+  case "$template" in
+    minimal)
+      scaffold_minimal "$name" "$target"
+      ;;
+    notes|blog|landing)
+      scaffold_from_skeleton "$template" "$name" "$target"
+      ;;
+    *)
+      die "unknown template: $template (minimal|notes|blog|landing)"
+      ;;
+  esac
+
+  apply_ui_preset "$target" "$ui"
+  info ""
+  info "Next:"
+  info "  cd $target"
+  info "  ori get ."
+  info "  ori run main.orl"
+  if [[ "$ui" != "none" && "$ui" != "htmx" ]]; then
+    info "  # optional SPA: cd frontend && npm install && npm run build"
+  fi
+  info ""
+  info "Clean-code guide: $REPO_ROOT/docs/CLEAN-CODE.md"
+}
+
+cmd_serve() {
+  local dir="${1:-.}"
+  dir="$(cd "$dir" && pwd)"
+  [[ -f "$dir/ori.proj" || -f "$dir/main.orl" ]] || die "not an Ori app root: $dir"
+  local host="${ORI_HOST:-127.0.0.1}"
+  local port="${PORT:-${ORI_PORT:-3000}}"
+  info "ori-web serve → $dir (ORI_HOST=$host PORT=$port)"
+  cd "$dir"
+  export ORI_HOST="$host"
+  export PORT="$port"
+  exec "${ORI_BIN:-ori}" run main.orl
+}
+
+cmd_generate() {
+  local kind="${1:-}" name="${2:-}"
+  [[ -n "$kind" && -n "$name" ]] || die "usage: ori-web generate <controller|scaffold|model> <name>"
+  [[ -f ori.proj ]] || die "run from app root (ori.proj missing)"
+  case "$kind" in
+    controller) exec "$WEB_APP_BIN/generate-controller" "$name" ;;
+    scaffold)   exec "$WEB_APP_BIN/generate-scaffold" "$name" ;;
+    model)      exec "$WEB_APP_BIN/generate-model" "$name" ;;
+    *) die "unknown generate kind: $kind" ;;
+  esac
+}
+
+cmd_ui_list() {
+  cat <<EOF
+Official UI presets (optional — never required by the core stack):
+
+  none     Server-rendered HTML only (ori-templates) — default
+  htmx     Progressive enhancement (pairs with templates)
+  svelte   Svelte 5 + Vite under frontend/
+  vue      Vue 3 + Vite under frontend/
+  solid    SolidJS + Vite under frontend/
+
+Any other frontend works: put build output in public/ and use ori-web static.
+
+See docs/UI-PRESETS.md
+EOF
+  if [[ -d "$UI_PRESETS" ]]; then
+    echo ""
+    echo "Installed presets:"
+    ls -1 "$UI_PRESETS"
+  fi
+}
+
+main() {
+  local cmd="${1:-help}"
+  shift || true
+  case "$cmd" in
+    new) cmd_new "$@" ;;
+    serve|dev) cmd_serve "$@" ;;
+    generate|g) cmd_generate "$@" ;;
+    ui) 
+      case "${1:-list}" in
+        list) cmd_ui_list ;;
+        *) die "usage: ori-web ui list" ;;
+      esac
+      ;;
+    help|-h|--help) cmd_help ;;
+    *) die "unknown command: $cmd (try: ori-web help)" ;;
+  esac
+}
+
+main "$@"

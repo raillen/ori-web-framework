@@ -24,33 +24,34 @@ ORI_HOST=127.0.0.1 PORT=3460 ori run main.orl
 
 ## Deploy on Fly.io
 
-The Docker image **does not compile Ori**. You build the binary on the host,
-then `fly deploy` packages it with `views/` and `public/`.
+The Docker image **does not compile Ori**. Build the binary on the host, then deploy.
 
-1. Install [flyctl](https://fly.io/docs/hands-on/install-flyctl/) and `fly auth login`.
-2. From **this directory**, compile a **Linux x86_64** binary (name must match Dockerfile):
+### Health-check timeouts (fixed config)
+
+If deploy fails with `timeout reached waiting for health checks`:
+
+1. App must listen on **`0.0.0.0:$PORT`** (this demo does; Fly sets `PORT=8080`).
+2. **`/healthz`** must return 200 quickly — registered first in `main`.
+3. Use the current `fly.toml`: **512MB RAM**, **grace_period 60s**, check timeout 5s.
+4. Prefer **one machine**: `fly deploy --ha=false` then `fly scale count 1`.
+5. Confirm binary runs locally: `PORT=18080 ORI_HOST=127.0.0.1 ./ori-notes` + `curl localhost:18080/healthz`.
+
+### Deploy steps
 
 ```bash
 cd demos/ori-notes
+# recommended helper (compile + local health smoke + deploy):
+./scripts/fly-deploy.sh
+
+# or manually:
 ori compile main.orl -o ori-notes
-ls -la ori-notes   # must exist and be executable (~10MB)
-```
-
-3. Deploy (do **not** list `ori-notes` in `.dockerignore` — that was a trap):
-
-```bash
-fly launch --no-deploy   # first time only
-fly deploy
-```
-
-If you see `"/ori-notes": not found` in the build, the binary is missing from
-the Docker context: re-run step 2 and check `.dockerignore` does not ignore it.
-
-4. Optional production secret:
-
-```bash
+fly deploy --ha=false
 fly secrets set ORI_WEB_SECRET="$(openssl rand -hex 32)"
+fly logs
 ```
+
+If you see `"/ori-notes": not found` in Docker build: binary missing from context
+(`.dockerignore` must **not** exclude `ori-notes`).
 
 ### Env
 

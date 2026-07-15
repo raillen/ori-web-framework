@@ -13,14 +13,24 @@ import ori.os = os
 import ori.convert = conv
 
 var NOTES: list[string] = []
+-- Opened in main() so CWD/views are ready under Docker/Fly WORKDIR.
 var VIEWS: tpl.Engine = tpl.open("views")
+var VIEWS_READY: bool = false
 
 listen_host() -> string
     return os.env_or("ORI_HOST", "0.0.0.0")
 end
 
 listen_port() -> int
+    -- Fly injects PORT; default local demos to 3460.
     return conv.parse_int_or(os.env_or("PORT", os.env_or("ORI_PORT", "3460")), 3460)
+end
+
+ensure_views() -> void
+    if not VIEWS_READY
+        VIEWS = tpl.open("views")
+        VIEWS_READY = true
+    end
 end
 
 notes_ctx() -> tpl.Data
@@ -55,6 +65,7 @@ page_ctx(req: web.Request) -> tpl.Data
 end
 
 render(req: web.Request, name: string) -> web.ActionResult
+    ensure_views()
     match tpl.render(VIEWS, name, page_ctx(req))
     case ok(html):
         return ok(web.html(200, html))
@@ -69,6 +80,7 @@ render_home(req: web.Request) -> web.ActionResult
 end
 
 render_rows(req: web.Request) -> web.ActionResult
+    ensure_views()
     match tpl.render_partial(VIEWS, "notes/rows", page_ctx(req))
     case ok(html):
         return ok(web.html(200, html))
@@ -127,16 +139,19 @@ health(_req: web.Request) -> web.ActionResult
 end
 
 main()
+    -- Fail fast with a clear log line if views/ is missing (Docker WORKDIR=/app).
+    ensure_views()
     web.use_memory_sessions()
     var a: web.App = web.app()
     a = web.set_rate_limit(a, 180)
     a = web.set_csp(a, "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'")
     web.static(a, "/assets", "public")
+    -- Register health BEFORE other work so probes succeed as soon as we listen.
+    web.get(a, "/healthz", health)
     web.get(a, "/", render_home)
     web.get(a, "/notes/rows", render_rows)
     web.post(a, "/notes", create_note)
     web.post(a, "/notes/:id/delete", delete_note)
-    web.get(a, "/healthz", health)
 
     const host: string = listen_host()
     const port: int = listen_port()
