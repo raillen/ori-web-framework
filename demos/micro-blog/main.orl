@@ -26,6 +26,7 @@ listen_port() -> int
 end
 
 db_path() -> string
+    -- Fly volume: set MICROBLOG_DB=/data/microblog.db
     return os.env_or("MICROBLOG_DB", "microblog.db")
 end
 
@@ -369,6 +370,7 @@ setup() -> result[void, string]
     case err(e):
         return err(e)
     case ok(_):
+        store.ensure_demo_user()
     end
     match ssql.use_sqlite_sessions(session_path())
     case err(e):

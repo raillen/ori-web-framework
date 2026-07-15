@@ -170,6 +170,25 @@ public register_user(username: string, password: string) -> result[User, string]
     return ok(User { id: id, username: username })
 end
 
+-- Public demo account for try-outs (idempotent). Seeded on store.open.
+public ensure_demo_user() -> void
+    if not READY
+        return
+    end
+    match find_user_by_name("test")
+    case some(_):
+        io.println("demo user: test (already present)")
+        return
+    case none:
+    end
+    match register_user("test", "password123")
+    case ok(_):
+        io.println("demo user: test / password123 (seeded)")
+    case err(e):
+        io.println(str.concat("demo user seed failed: ", e))
+    end
+end
+
 public list_posts(limit: int) -> list[Post]
     var out: list[Post] = []
     if not READY

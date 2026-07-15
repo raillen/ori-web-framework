@@ -1,0 +1,8 @@
+# Do NOT ignore the micro-blog binary — Dockerfile COPYs it.
+frontend/
+*.db
+.sessions/
+.git
+*.log
+audit.log
+micro-blog-bin

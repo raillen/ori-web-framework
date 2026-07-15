@@ -3,13 +3,23 @@
 
 <section class="card narrow">
   <h1>Sign in</h1>
+
+  <aside class="demo-creds" role="note">
+    <p class="demo-creds-title">Demo credentials (public test account)</p>
+    <p>
+      Username: <code>test</code><br>
+      Password: <code>password123</code>
+    </p>
+    <p class="muted small">Anyone can use this account to try the micro-blog. Prefer registering your own user for real posts.</p>
+  </aside>
+
   <form method="post" action="/login" class="stack">
     <input type="hidden" name="csrf_token" value="@{ csrf_token }">
     <label>Username
-      <input name="username" required autocomplete="username" maxlength="32" pattern="[A-Za-z0-9_]{3,32}">
+      <input name="username" required autocomplete="username" maxlength="32" pattern="[A-Za-z0-9_]{3,32}" value="test">
     </label>
     <label>Password
-      <input type="password" name="password" required autocomplete="current-password" minlength="8">
+      <input type="password" name="password" required autocomplete="current-password" minlength="8" value="password123">
     </label>
     <button type="submit" class="btn">Sign in</button>
   </form>

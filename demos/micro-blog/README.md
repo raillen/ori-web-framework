@@ -39,6 +39,29 @@ Env:
 | `MICROBLOG_SESSION_DB` | `microblog_sessions.db` | Sessions |
 | `ORI_ENV` | — | Set `production` + strong `ORI_WEB_SECRET` when deploying |
 
+### Demo login (seeded on boot)
+
+| Field | Value |
+|-------|--------|
+| **Username** | `test` |
+| **Password** | `password123` |
+
+Shown on the login page. Created automatically if missing (`store.ensure_demo_user`).
+
+## Fly.io
+
+```bash
+cd demos/micro-blog
+ori compile main.orl -o micro-blog   # AOT; needs sqlite static libs
+# first time: create volume in the same region as fly.toml (gru)
+fly volumes create microblog_data --region gru --size 1 -a ori-micro-blog
+fly apps create ori-micro-blog   # if needed
+fly deploy --ha=false -a ori-micro-blog
+fly secrets set ORI_WEB_SECRET="$(openssl rand -hex 32)" -a ori-micro-blog
+```
+
+SQLite lives on the volume at `/data/*.db`.
+
 ## Security notes
 
 - Passwords: `crypto.hash_password` / `verify_password` (argon2id).

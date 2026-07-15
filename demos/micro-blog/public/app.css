@@ -104,3 +104,27 @@ button.linkish:hover { color: var(--ink); }
 .md-toolbar button:hover { border-color: var(--accent); color: var(--accent-deep); }
 .foot { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 1.5rem; border-top: 1px solid var(--line); }
 .foot p { margin: 0; }
+.demo-creds {
+  margin: 0 0 1.1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.65rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+}
+.demo-creds-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+.demo-creds p { margin: 0 0 0.4rem; }
+.demo-creds code {
+  font-family: var(--mono);
+  font-size: 0.95em;
+  background: #fff;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--line);
+}
