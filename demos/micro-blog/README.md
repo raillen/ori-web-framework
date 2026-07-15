@@ -21,7 +21,9 @@ ln -sfn "$HOME/Documentos/Projetos/ori-sqlite" packages/ori-sqlite   # if missin
 cd demos/micro-blog
 ori get .
 
-# Prefer AOT when using ori-sqlite staticlibs (JIT needs .so cdylib):
+# After `packages/ori-sqlite && ./tools/build_linux.sh` (builds .a + .so):
+ori run main.orl
+# If JIT fails, force AOT:
 ORI_USE_AOT=1 ori run main.orl
 # or:
 ori compile main.orl -o micro-blog && ./micro-blog
