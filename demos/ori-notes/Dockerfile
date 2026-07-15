@@ -1,7 +1,11 @@
-# Build on host (Linux x86_64), then: fly deploy
+# Host binary is often linked against a recent glibc (e.g. Ubuntu 24.04 → GLIBC_2.39).
+# debian:bookworm only has ~2.36 → crash: "GLIBC_2.39 not found".
+# Use Ubuntu 24.04 so host-built Ori binaries run on Fly.
+#
 #   ori compile main.orl -o ori-notes
+#   fly deploy --ha=false
 
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -27,5 +31,4 @@ ENV ORI_ENV=production
 
 EXPOSE 8080
 
-# Fail the container if the binary cannot start (better Fly logs than silent hang)
 CMD ["/app/ori-notes"]

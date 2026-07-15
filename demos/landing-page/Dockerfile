@@ -1,4 +1,5 @@
-FROM debian:bookworm-slim
+# Match host glibc (Ubuntu 24.04 / GLIBC_2.39+) — not debian:bookworm.
+FROM ubuntu:24.04
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 \

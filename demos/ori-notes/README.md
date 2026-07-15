@@ -53,6 +53,19 @@ fly logs
 If you see `"/ori-notes": not found` in Docker build: binary missing from context
 (`.dockerignore` must **not** exclude `ori-notes`).
 
+### `GLIBC_2.39 not found` (process exits code 1)
+
+Your host linked the binary against a **newer glibc** than `debian:bookworm`.
+This demo’s Dockerfile uses **`ubuntu:24.04`** so GLIBC matches typical Ubuntu 24 hosts.
+
+```text
+# Fly log symptom:
+/app/ori-notes: version `GLIBC_2.39' not found (required by /app/ori-notes)
+# Proxy then: PR04 could not find a good candidate…  (no healthy machine)
+```
+
+Redeploy after pulling the Ubuntu base image.
+
 ### Env
 
 | Variable | Default | Role |
