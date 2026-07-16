@@ -17,6 +17,8 @@ This monorepo is the **Lantern** libraries + demos.
 The **Ori compiler** lives in [ori-lang](https://github.com/raillen/ori-lang).  
 Brand notes: [`docs/BRAND.md`](docs/BRAND.md).
 
+**Package publish home:** official snapshots of Lantern libs also live in [`ori-official-packages`](https://github.com/raillen/ori-official-packages) (registry). Day-to-day development of the web stack stays **here**.
+
 ## Layout
 
 ```text
